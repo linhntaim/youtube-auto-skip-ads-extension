@@ -1,6 +1,6 @@
 # youtube-auto-skip-ads-extension
 
-Help to automatically skip ads while playing videos on YouTube.
+A Chrome extension to help to automatically skip ads while playing videos on YouTube website.
 
 ## Known about YouTube
 
