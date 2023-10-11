@@ -1,81 +1,104 @@
-function debug(debug) {
-    console.debug(`YtbASAds:`, debug)
+function debug(...out) {
+    console.debug('YtbASAds:', ...out)
 }
 
-const els = {}
+class AdObserverManager
+{
+    constructor() {
+        this.observers = new Map()
+    }
 
-function regEl(name, el) {
-    els[name] = el
-}
+    observed(node) {
+        return node in this.observers
+    }
 
-function getEl(name) {
-    return els[name]
-}
-
-const INTERVAL = 200
-const DELAY_BEFORE_RESTART_INTERVAL = 1000
-let intervalId = null
-
-function startDetectingAd() {
-    intervalId = setInterval(detectAd, INTERVAL)
-}
-
-function restartDetectingAd() {
-    debug('Keep detecting ad ...')
-    setTimeout(startDetectingAd, DELAY_BEFORE_RESTART_INTERVAL)
-}
-
-function stopDetectingAd() {
-    if (intervalId) {
-        clearInterval(intervalId)
-        intervalId = null
+    createObserver(node, callback, config = {childList: true}) {
+        const observer = new MutationObserver(callback)
+        observer.observe(node, config)
+        this.observers[node] = observer
+        return this
     }
 }
 
-function detectAd() {
-    if (hasAdSkip()) {
-        skipAd(skipAdViaButton)
+class AdSkipper
+{
+    keepSkipping(adModuleNode) {
+        setTimeout(() => {
+            if (adModuleNode.childNodes.length) {
+                debug('Ad is!')
+                this.skip(adModuleNode)
+            }
+        }, 250)
     }
-    else if (hasAd()) {
-        skipAd(skipAdViaPlay)
+
+    skip(adModuleNode) {
+        if (adModuleNode.childNodes.length) {
+            debug('Ad found! Skipping ...')
+            try {
+                const adSkipButtonNode = adModuleNode.querySelector('.ytp-ad-skip-button')
+                if (adSkipButtonNode) {
+                    debug('Skip via button ...')
+                    adSkipButtonNode.click()
+                }
+                else {
+                    debug('Skip via video ...')
+                    const mainVideoNode = document.querySelector('.html5-main-video')
+                    mainVideoNode.currentTime = mainVideoNode.duration
+                }
+            }
+            catch (e) {
+                debug('Failed to skip ad!', e)
+            }
+
+            this.keepSkipping(adModuleNode)
+        }
+        else {
+            debug('Ad skipped!')
+        }
     }
 }
 
-function hasAd() {
-    const adModuleEl = document.querySelector('.ytp-ad-module')
-    return adModuleEl?.childNodes.length
-}
-
-function hasAdSkip() {
-    const adSkipEl = document.querySelector('.ytp-ad-skip-button')
-    if (adSkipEl) {
-        regEl('adSkip', adSkipEl)
-        return true
+class App
+{
+    constructor() {
+        this.adObserverManager = new AdObserverManager()
     }
-    return false
-}
 
-function skipAd(skip) {
-    stopDetectingAd()
-    debug('Ad found. Skipping ...')
-    try {
-        skip()
-        debug('Ad skipped!')
+    createTitleObserver() {
+        this.adObserverManager.createObserver(
+            document.querySelector('title'),
+            () => {
+                debug('Title updated --> URL might change!')
+
+                this.createAdModuleObservers()
+            },
+        )
     }
-    catch (e) {
-        debug('Ad not skipped!', e)
+
+    createAdModuleObservers() {
+        debug('Finding ad ...')
+        document.querySelectorAll('.ytp-ad-module')
+            .forEach(node => {
+                if (this.adObserverManager.observed(node)) {
+                    debug('Already observed!')
+                    return
+                }
+                this.skipAd(node)
+                this.adObserverManager.createObserver(node, () => this.skipAd(node))
+                debug('Newly observed!')
+            })
     }
-    restartDetectingAd()
+
+    skipAd(adModuleNode) {
+        new AdSkipper().skip(adModuleNode)
+    }
+
+    mount() {
+        debug('App mounting ...')
+        this.createTitleObserver()
+        this.createAdModuleObservers()
+        debug('App mounted!')
+    }
 }
 
-function skipAdViaPlay() {
-    let video = document.querySelector('.html5-main-video')
-    video.currentTime = video.duration
-}
-
-function skipAdViaButton() {
-    getEl('adSkip').click()
-}
-
-debug('Start detecting ad ...')
-startDetectingAd()
+new App().mount()
