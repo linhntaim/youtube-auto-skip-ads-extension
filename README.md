@@ -1,1 +1,1 @@
-# youtube-skip-ads-extension
+# youtube-auto-skip-ads-extension
